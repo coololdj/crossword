@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>7×7 クロスワード</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:12px;background:#f6f7f9;color:#26313d;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic UI",sans-serif;-webkit-tap-highlight-color:transparent}main{max-width:390px;margin:auto}header{display:flex;align-items:center;justify-content:space-between;margin:0 2px 10px}h1{margin:0;font-size:1.18rem}.tools{display:flex;gap:7px;align-items:center}.dir,.clear,.tab{border:0;border-radius:7px;font-weight:700}.dir{padding:5px 9px;color:#fff;background:#d94686}.dir.down{background:#3b82f6}.clear{padding:6px 9px;background:#e9edf2;color:#485565}.board{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;padding:2px;background:#253244;border-radius:5px;aspect-ratio:1}.cell{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;background:#fff;font:700 clamp(1.18rem,6vw,1.55rem)/1 sans-serif;color:#17202b;user-select:none}.cell.black{background:#253244}.cell.active{background:#fde68a}.cell.word{background:#fef3c7}.num{position:absolute;top:2px;left:3px;font-size:.57rem;font-weight:700;color:#566273}.cluebar{display:flex;gap:8px;align-items:flex-start;margin:10px 0;padding:9px 10px;border:1px solid #cddff7;border-radius:8px;background:#eff6ff;font-size:.88rem;line-height:1.4}.badge{flex:none;padding:2px 7px;border-radius:5px;background:#d94686;color:#fff;font-size:.72rem;font-weight:700}.badge.down{background:#3b82f6}.panel{overflow:hidden;border:1px solid #d8dee7;border-radius:9px;background:#fff}.tabs{display:grid;grid-template-columns:1fr 1fr;background:#f1f4f7}.tab{padding:9px;background:transparent;color:#617083;border-radius:0}.tab.on{background:#fff;color:#17202b}.list{max-height:220px;overflow:auto;padding:5px}.clue{padding:7px 8px;border-radius:6px;font-size:.86rem;line-height:1.45;cursor:pointer}.clue.active{background:#e8f1ff;font-weight:600}.clue b{margin-right:5px;color:#d94686}.downlist .clue b{color:#3b82f6}.hint{margin:8px 2px 0;color:#738091;font-size:.72rem;line-height:1.5}#ime{position:fixed;left:-20px;bottom:0;width:1px;height:1px;opacity:.01;border:0;padding:0;font-size:16px}
+</style>
+</head>
+<body>
+<main>
+<header><h1>7×7 クロスワード</h1><div class="tools"><button id="dir" class="dir">ヨコ</button><button id="clear" class="clear">クリア</button></div></header>
+<div id="board" class="board"></div>
+<div class="cluebar"><span id="badge" class="badge">ヨコ1</span><span id="current">マスをタップして入力してください</span></div>
+<section class="panel">
+<div class="tabs"><button class="tab on" data-d="across">ヨコのカギ</button><button class="tab" data-d="down">タテのカギ</button></div>
+<div id="list" class="list"></div>
+</section>
+<p class="hint">マスをタップして日本語IMEで入力してください。確定した文字だけを1文字ずつ各マスへ入れます。</p>
+</main>
+<textarea id="ime" lang="ja" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"></textarea>
+<script>
+const N=7,B=["...#...","....#..","..#....","......#",".#.#.#.",".......","...#..."],
+C={across:{
+1:"さえずりの声が伝説上の怪物「鵺」の正体とされる、トラ〇〇〇",
+4:"麻の実の異称",
+7:"「〇〇〇〇の天使」と呼ばれた英国の看護師、ナイチンゲール",
+9:"京都へ上ること、上〇〇",
+10:"あごひげを生やし人間の手をもった人頭の鷹の姿が多く描かれる、古代エジプトで人間が持つと考えられた霊魂の一つ",
+11:"後白河天皇の子で安徳天皇の父、〇〇〇〇天皇",
+13:"乱数を使った数学的問題の近似解を得る方法、〇〇〇〇〇〇法",
+16:"自分が努力することを謙遜する例え",
+19:"天然に存在するなかで、最大の原子番号をもつ元素",
+20:"古代ギリシャの都市国家で、市民の集会や談論・裁判・交易などの場"
+},down:{
+1:"二条良基による南北朝期の連歌論書",
+2:"映画「第三の男」の脚本でも知られる作家、グレアム・〇〇〇〇",
+3:"ことわざ「壁に〇〇あり障子に目あり」",
+5:"1931〜41年連載。猛犬聯隊が舞台の田河水泡の漫画",
+6:"中央に標高851mの御山がある、伊豆七島の〇〇〇島",
+8:"武蔵坊弁慶をシテとする、能の曲目",
+12:"欧州最大のブナ原生林で知られる、東欧の〇〇〇〇〇山脈",
+14:"緑茶のうまみ成分であるアミノ酸",
+15:"中国で月にあると考えられた木",
+17:"サクラやリンゴは〇〇科の植物",
+18:"現在の秋田県の大半にあたる旧国名"
+}};
+const $=s=>document.getElementById(s),board=$("board"),list=$("list"),dirBtn=$("dir"),badge=$("badge"),current=$("current"),ime=$("ime");
+let nums={},pos={},r=0,c=0,dir="across",tab="across",composing=false,skip=false,V=Array.from({length:N},()=>Array(N).fill(""));
+for(let y=0,n=0;y<N;y++)for(let x=0;x<N;x++)if(B[y][x]!="#"){
+ let a=(x==0||B[y][x-1]=="#")&&x+1<N&&B[y][x+1]!="#",
+ d=(y==0||B[y-1][x]=="#")&&y+1<N&&B[y+1][x]!="#";
+ if(a||d){nums[y+"-"+x]=++n;pos[n]={r:y,c:x}}
+}
+function cells(y,x,d){
+ let z=[],dy=d=="down",dx=!dy,Y=y,X=x;
+ while(Y-dy>=0&&X-dx>=0&&B[Y-dy][X-dx]!="#"){Y-=dy;X-=dx}
+ while(Y<N&&X<N&&B[Y][X]!="#"){z.push({r:Y,c:X});Y+=dy;X+=dx}
+ return z
+}
+function clue(y,x,d){
+ let w=cells(y,x,d),p=w[0],n=nums[p.r+"-"+p.c];
+ return w.length>1&&C[d][n]?{n,text:C[d][n],cells:w}:null
+}
+function choose(y,x){
+ if(clue(y,x,dir))return;
+ let d=dir=="across"?"down":"across";
+ if(clue(y,x,d))dir=d
+}
+function focusCell(y,x){
+ if(y<0||y>=N||x<0||x>=N||B[y][x]=="#")return;
+ r=y;c=x;choose(r,c);paint();ime.value="";ime.focus({preventScroll:true})
+}
+function toggle(){
+ let d=dir=="across"?"down":"across";
+ if(clue(r,c,d)){dir=d;paint();ime.focus({preventScroll:true})}
+}
+function paint(){
+ document.querySelectorAll(".cell").forEach(e=>e.classList.remove("active","word"));
+ let q=clue(r,c,dir);
+ if(q){
+  q.cells.forEach(p=>$(`c-${p.r}-${p.c}`).classList.add(p.r==r&&p.c==c?"active":"word"));
+  badge.textContent=(dir=="across"?"ヨコ":"タテ")+q.n;
+  badge.className="badge"+(dir=="down"?" down":"");
+  current.textContent=q.text
+ }else{badge.textContent="カギなし";badge.className="badge";current.textContent=""}
+ dirBtn.textContent=dir=="across"?"ヨコ":"タテ";
+ dirBtn.className="dir"+(dir=="down"?" down":"");
+ renderList()
+}
+function kana(s){
+ return [...s.normalize("NFKC").replace(/[ぁ-ゖ]/g,ch=>String.fromCharCode(ch.charCodeAt(0)+96))]
+ .filter(ch=>/[ァ-ヺー]/.test(ch))
+}
+function setChar(y,x,ch){V[y][x]=ch;$(`c-${y}-${x}`).lastChild.nodeValue=ch}
+function commit(s){
+ let a=kana(s);ime.value="";if(!a.length)return;
+ let q=clue(r,c,dir);if(!q){setChar(r,c,a[0]);return}
+ let k=q.cells.findIndex(p=>p.r==r&&p.c==c),last=k;
+ for(let i=0;i<a.length&&k+i<q.cells.length;i++){let p=q.cells[k+i];setChar(p.r,p.c,a[i]);last=k+i}
+ let nx=q.cells[Math.min(last+1,q.cells.length-1)];r=nx.r;c=nx.c;paint();ime.focus({preventScroll:true})
+}
+function back(){
+ if(V[r][c]){setChar(r,c,"");return}
+ let q=clue(r,c,dir);if(!q)return;
+ let k=q.cells.findIndex(p=>p.r==r&&p.c==c);
+ if(k>0){let p=q.cells[k-1];setChar(p.r,p.c,"");focusCell(p.r,p.c)}
+}
+function move(dy,dx){focusCell(r+dy,c+dx)}
+function renderList(){
+ list.className="list"+(tab=="down"?" downlist":"");list.innerHTML="";
+ Object.entries(C[tab]).forEach(([n,t])=>{
+  let e=document.createElement("div"),p=pos[n],q=clue(r,c,dir);e.className="clue";
+  if(tab==dir&&q&&+n==q.n)e.classList.add("active");
+  e.innerHTML=`<b>${n}.</b>${t}`;
+  e.onclick=()=>{dir=tab;focusCell(p.r,p.c)};
+  list.append(e)
+ })
+}
+for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+ let d=document.createElement("div");d.id=`c-${y}-${x}`;d.className="cell";
+ if(B[y][x]=="#")d.classList.add("black");
+ else{
+  let n=nums[y+"-"+x];if(n){let s=document.createElement("span");s.className="num";s.textContent=n;d.append(s)}
+  d.append(document.createTextNode(""));
+  d.onclick=()=>r==y&&c==x?toggle():focusCell(y,x)
+ }
+ board.append(d)
+}
+ime.addEventListener("compositionstart",()=>composing=true);
+ime.addEventListener("compositionend",e=>{composing=false;skip=true;commit(e.data||ime.value);queueMicrotask(()=>skip=false)});
+ime.addEventListener("input",()=>{if(!composing&&!skip&&ime.value)commit(ime.value)});
+ime.addEventListener("keydown",e=>{
+ if(e.key=="Backspace"&&!composing){e.preventDefault();back()}
+ else if(e.key=="ArrowRight"){e.preventDefault();move(0,1)}
+ else if(e.key=="ArrowLeft"){e.preventDefault();move(0,-1)}
+ else if(e.key=="ArrowDown"){e.preventDefault();move(1,0)}
+ else if(e.key=="ArrowUp"){e.preventDefault();move(-1,0)}
+});
+document.querySelectorAll(".tab").forEach(b=>b.onclick=()=>{tab=b.dataset.d;document.querySelectorAll(".tab").forEach(x=>x.classList.toggle("on",x==b));renderList()});
+dirBtn.onclick=toggle;
+$("clear").onclick=()=>{if(confirm("盤面の文字をすべて消去しますか？")){V.forEach(row=>row.fill(""));document.querySelectorAll(".cell:not(.black)").forEach(e=>{e.lastChild.nodeValue=""});focusCell(r,c)}};
+focusCell(0,0);
+</script>
+</body>
+</html>
